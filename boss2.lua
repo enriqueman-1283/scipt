@@ -15,7 +15,7 @@ local baseButton = hotbarFrame:FindFirstChild("1").Base
 local ToolName = baseButton.ToolName
  
  
-ToolName.Text = "Move1"
+ToolName.Text = "Fangs Of Red"
  
  
 local player = game.Players.LocalPlayer
@@ -33,7 +33,7 @@ local baseButton = hotbarFrame:FindFirstChild("2").Base
 local ToolName = baseButton.ToolName
  
  
-ToolName.Text = "Move2"
+ToolName.Text = "Throwup"
  
  
 local player = game.Players.LocalPlayer
@@ -51,7 +51,7 @@ local baseButton = hotbarFrame:FindFirstChild("3").Base
 local ToolName = baseButton.ToolName
  
  
-ToolName.Text = "Move3"
+ToolName.Text = "Held Slam"
  
  
 local player = game.Players.LocalPlayer
@@ -69,7 +69,7 @@ local baseButton = hotbarFrame:FindFirstChild("4").Base
 local ToolName = baseButton.ToolName
  
  
-ToolName.Text = "Move4"
+ToolName.Text = "Copied Counter Attempt"
  
  
 local Players = game:GetService("Players")
@@ -93,7 +93,7 @@ local function findGuiAndSetText()
  
             if textLabel then
  
-                textLabel.Text = "UltimateName"
+                textLabel.Text = "Anger"
  
             end
  
@@ -141,7 +141,7 @@ end
  
 local AnimAnim = Instance.new("Animation")
  
-AnimAnim.AnimationId = "rbxassetid://17838006839"
+AnimAnim.AnimationId = "rbxassetid://18896229321"
  
 local Anim = Humanoid:LoadAnimation(AnimAnim)
  
@@ -155,7 +155,7 @@ Anim:AdjustSpeed(0.1)
  
 Anim.TimePosition = startTime
  
-Anim:AdjustSpeed(0.9)
+Anim:AdjustSpeed(0.5)
  
  
     end
@@ -662,15 +662,15 @@ local replacementAnimations = {
  
     ["10469493270"] = "rbxassetid://17889458563", --punch1
  
-    ["10469630950"] = "rbxassetid://17889461810", --punch2
+    ["10469630950"] = "rbxassetid://17325510002", --punch2
  
     ["10469639222"] = "rbxassetid://17889471098", --punch3
  
-    ["10469643643"] = "rbxassetid://17889290569", --punch4
+    ["10469643643"] = "rbxassetid://16944345619", --punch4
  
     ["17859015788"] = "rbxassetid://12684185971", --downslam finisher
  
-    ["11365563255"] = "rbxassetid://14516273501" --punch idk
+    ["11365563255"] = "rbxassetid://100558589307006" --punch idk
  
 }
  
@@ -831,7 +831,7 @@ local humanoid = character:WaitForChild("Humanoid")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
  
 -- Messages to send
-local messages = {"MESSAGE x1", "MESSAGE x2", "MESSAGE x3", "MESSAGE x4"}
+local messages = {"I FEEEELL SO ALIVVE"}
  
 local function sendMessage(text)
     ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(text, "All")
@@ -1144,7 +1144,7 @@ for _, animTrack in pairs(Humanoid:GetPlayingAnimationTracks()) do
 end
  
 local AnimAnim = Instance.new("Animation")
-AnimAnim.AnimationId = "rbxassetid://14611879113" -- Replace with your animation ID
+AnimAnim.AnimationId = "rbxassetid://95000469063288" -- Replace with your animation ID
  
 local Anim = Humanoid:LoadAnimation(AnimAnim)
  
@@ -1370,7 +1370,7 @@ end
 humanoid.AnimationPlayed:Connect(onAnimationPlayed)
  
  
-local animationId = 10466974800
+local animationId = 130301810149072
  
  
 local player = game.Players.LocalPlayer
@@ -1399,7 +1399,7 @@ end
  
 local AnimAnim = Instance.new("Animation")
  
-AnimAnim.AnimationId = "rbxassetid://18181589384"
+AnimAnim.AnimationId = "rbxassetid://130301810149072"
  
 local Anim = Humanoid:LoadAnimation(AnimAnim)
  
@@ -1428,7 +1428,7 @@ end
 humanoid.AnimationPlayed:Connect(onAnimationPlayed)
  
  
-local animationId = 10471336737
+local animationId = 98542310119798
  
  
 local player = game.Players.LocalPlayer
@@ -1457,7 +1457,7 @@ end
  
 local AnimAnim = Instance.new("Animation")
  
-AnimAnim.AnimationId = "rbxassetid://17838619895"
+AnimAnim.AnimationId = "rbxassetid://98542310119798"
  
 local Anim = Humanoid:LoadAnimation(AnimAnim)
  
@@ -3631,89 +3631,6 @@ runTool.Equipped:Connect(function()
     end)
 end)
 
-runTool.Unequipped:Connect(function()
-    isRunningWithTool = false
-    if ToolRunTrack then
-        ToolRunTrack:Stop(0.1)
-        ToolRunTrack = nil
-    end
-end)local runTool = Instance.new("Tool")
-runTool.Name = "Run Tool"
-runTool.Parent = Player:WaitForChild("Backpack")
-runTool.RequiresHandle = false
-
-local isRunningWithTool = false
-local toolMovementSpeed = 125
-
-local ToolRunAnim = Instance.new("Animation")
-ToolRunAnim.AnimationId = "rbxassetid://15962326593"
-local ToolRunTrack = nil
-
-runTool.Equipped:Connect(function()
-    isRunningWithTool = true
-    if Animator then
-        ToolRunTrack = Animator:LoadAnimation(ToolRunAnim)
-        ToolRunTrack.Priority = Enum.AnimationPriority.Action4
-        ToolRunTrack:Play(0.1)
-        ToolRunTrack:AdjustSpeed(1.4)
-    end
-
-    task.spawn(function()
-        while isRunningWithTool do
-            if RootPart then
-                RootPart.AssemblyLinearVelocity = Vector3.new(RootPart.CFrame.LookVector.X * toolMovementSpeed, RootPart.AssemblyLinearVelocity.Y, RootPart.CFrame.LookVector.Z * toolMovementSpeed)
-                DeployVFX("HunterMode", 1)
-            end
-            RunService.Stepped:Wait()
-        end
-    end)
-end)
-
-runTool.Unequipped:Connect(function()
-    isRunningWithTool = false
-    if ToolRunTrack then
-        ToolRunTrack:Stop(0.1)
-        ToolRunTrack = nil
-    end
-end)local runTool = Instance.new("Tool")
-runTool.Name = "Run Tool"
-runTool.Parent = Player:WaitForChild("Backpack")
-runTool.RequiresHandle = false
-
-local isRunningWithTool = false
-local toolMovementSpeed = 125
-
-local ToolRunAnim = Instance.new("Animation")
-ToolRunAnim.AnimationId = "rbxassetid://15962326593"
-local ToolRunTrack = nil
-
-runTool.Equipped:Connect(function()
-    isRunningWithTool = true
-    if Animator then
-        ToolRunTrack = Animator:LoadAnimation(ToolRunAnim)
-        ToolRunTrack.Priority = Enum.AnimationPriority.Action4
-        ToolRunTrack:Play(0.1)
-        ToolRunTrack:AdjustSpeed(1.4)
-    end
-
-    task.spawn(function()
-        while isRunningWithTool do
-            if RootPart then
-                RootPart.AssemblyLinearVelocity = Vector3.new(RootPart.CFrame.LookVector.X * toolMovementSpeed, RootPart.AssemblyLinearVelocity.Y, RootPart.CFrame.LookVector.Z * toolMovementSpeed)
-                DeployVFX("HunterMode", 1)
-            end
-            RunService.Stepped:Wait()
-        end
-    end)
-end)
-
-runTool.Unequipped:Connect(function()
-    isRunningWithTool = false
-    if ToolRunTrack then
-        ToolRunTrack:Stop(0.1)
-        ToolRunTrack = nil
-    end
-end)
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local TweenService = game:GetService("TweenService")
@@ -3936,4 +3853,44 @@ end
 workspace.Live.ChildAdded:Connect(function(instance)
 	instance:WaitForChild("Humanoid")
 	onHealthChanged(instance, instance.Humanoid)
+end)
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+local Animator = Humanoid:WaitForChild("Animator") or Humanoid:WaitForChild("Animator")
+
+-- Configure Land Animation
+local LandAnim = Instance.new("Animation")
+LandAnim.AnimationId = "rbxassetid://98542310119798"
+local LandTrack = nil
+
+local function onStateChanged(oldState, newState)
+    -- Check if the player just touched the ground after falling or jumping
+    if newState == Enum.HumanoidStateType.Landed then
+        if Animator then
+            -- Preload track if it hasn't been loaded yet
+            if not LandTrack then
+                LandTrack = Animator:LoadAnimation(LandAnim)
+                LandTrack.Priority = Enum.AnimationPriority.Action2 -- Ensures it overrides standard movement
+            end
+            
+            -- Play the land animation
+            LandTrack:Play(0.05)
+        end
+    end
+end
+
+-- Connect state listener
+local StateConnection = Humanoid.StateChanged:Connect(onStateChanged)
+
+-- Handle character respawns cleanly
+Player.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    Humanoid = newChar:WaitForChild("Humanoid")
+    Animator = Humanoid:WaitForChild("Animator")
+    LandTrack = nil
+    
+    if StateConnection then StateConnection:Disconnect() end
+    StateConnection = Humanoid.StateChanged:Connect(onStateChanged)
 end)
