@@ -1,5 +1,5 @@
 -- ============================================================================
--- GAROU PERFECTED SYSTEM (MAX-PRIORITY FORCE OVERRIDE ENGINE)
+-- GAROU PERFECTED SYSTEM (DYNAMIC STUN & FORCED MOTION OVERRIDE ENGINE)
 -- ============================================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -48,6 +48,9 @@ local PunchReplacements = {
     ["11365563255"] = "14516273501", -- Extra M1 Punch
 }
 
+-- Global tracking state to prevent walking loop from clipping combat skills
+local IsAttackingOrStunned = false
+
 -- ============================================================================
 -- 2. DYNAMIC GAME REPLICATED VFX DEPLOYER
 -- ============================================================================
@@ -93,7 +96,6 @@ local function GetClosestEnemy()
     local closestEnemy = nil
     local maxDistance = 250
     
-    -- Loop through workspace safely to find the true closest target layout
     for _, obj in ipairs(workspace:GetChildren()) do
         if obj:IsA("Model") and obj ~= Character and obj:FindFirstChild("HumanoidRootPart") and obj:FindFirstChild("Humanoid") then
             local p = Players:GetPlayerFromCharacter(obj)
@@ -130,7 +132,7 @@ local function TriggerFrontflip()
 end
 
 -- ============================================================================
--- 4. INTEGRATED RUN TOOL INITIALIZATION
+-- 4. INTEGRATED RUN TOOL INITIALIZATION (FORCED RUN FIX)
 -- ============================================================================
 local runTool = Instance.new("Tool")
 runTool.Name = "Run Tool"
@@ -140,8 +142,21 @@ runTool.RequiresHandle = false
 local isRunningWithTool = false
 local toolMovementSpeed = 125
 
+local ToolRunAnim = Instance.new("Animation")
+ToolRunAnim.AnimationId = "rbxassetid://15962326593" -- Forcing your custom sprint track
+local ToolRunTrack = nil
+
 runTool.Equipped:Connect(function()
     isRunningWithTool = true
+    IsAttackingOrStunned = false
+    
+    if Animator then
+        ToolRunTrack = Animator:LoadAnimation(ToolRunAnim)
+        ToolRunTrack.Priority = Enum.AnimationPriority.Action4 -- Overwrites base TSB run completely
+        ToolRunTrack:Play(0.1)
+        ToolRunTrack:AdjustSpeed(1.4)
+    end
+
     task.spawn(function()
         while isRunningWithTool do
             if RootPart then
@@ -155,10 +170,14 @@ end)
 
 runTool.Unequipped:Connect(function()
     isRunningWithTool = false
+    if ToolRunTrack then
+        ToolRunTrack:Stop(0.1)
+        ToolRunTrack = nil
+    end
 end)
 
 -- ============================================================================
--- 5. CENTRAL ANIMATION INTERCEPT ENGINE (FORCE METHOD)
+-- 5. CENTRAL ANIMATION INTERCEPT ENGINE
 -- ============================================================================
 local function StopAllTracks()
     for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do
@@ -175,6 +194,7 @@ local function HandleInterception(animationTrack)
     
     local config = AnimationData[rawId]
     if config then
+        IsAttackingOrStunned = true -- Freeze walk loop
         animationTrack:Stop(0)
         StopAllTracks()
         
@@ -198,7 +218,6 @@ local function HandleInterception(animationTrack)
             newAnim.AnimationId = "rbxassetid://" .. config.Replacement
             local newTrack = Animator:LoadAnimation(newAnim)
             
-            -- FORCES absolute priority layer to completely override system animations
             newTrack.Priority = Enum.AnimationPriority.Action4
             newTrack:Play(0)
             
@@ -208,16 +227,22 @@ local function HandleInterception(animationTrack)
             end
             newTrack:AdjustSpeed(config.Speed)
             
+            -- Keep movement background frozen for duration of move
             if config.Duration then
                 task.wait(config.Duration)
-                newTrack:Stop(0.1)
+            else
+                newTrack.Stopped:Wait()
             end
+            
+            newTrack:Stop(0.1)
+            IsAttackingOrStunned = false -- Release walk loop safely
         end)
         return
     end
     
     local punchReplacementId = PunchReplacements[rawId]
     if punchReplacementId then
+        IsAttackingOrStunned = true
         animationTrack:Stop(0)
         
         local newAnim = Instance.new("Animation")
@@ -225,13 +250,18 @@ local function HandleInterception(animationTrack)
         local newTrack = Animator:LoadAnimation(newAnim)
         newTrack.Priority = Enum.AnimationPriority.Action4
         newTrack:Play(0)
+        
+        task.spawn(function()
+            newTrack.Stopped:Wait()
+            IsAttackingOrStunned = false
+        end)
     end
 end
 
 Humanoid.AnimationPlayed:Connect(HandleInterception)
 
 -- ============================================================================
--- 6. VELOCITY DAMPENER (Prevents Physics Overwrites & Flight Kicks)
+-- 6. VELOCITY DAMPENER
 -- ============================================================================
 local function SecureVelocity(descendant)
     if descendant:IsA("BodyVelocity") then
@@ -243,7 +273,7 @@ Character.DescendantAdded:Connect(SecureVelocity)
 for _, desc in ipairs(Character:GetDescendants()) do SecureVelocity(desc) end
 
 -- ============================================================================
--- 7. STATE CORE: FIXED CUSTOM RUN & IDLE ENGINE
+-- 7. STATE CORE: SMART IDLE & WALK OVERLAY LOOPS
 -- ============================================================================
 local IdleAnim = Instance.new("Animation")
 IdleAnim.AnimationId = "rbxassetid://15099756132"
@@ -258,19 +288,21 @@ RunTrack.Priority = Enum.AnimationPriority.Action3
 task.spawn(function()
     while true do
         if Character and Character.Parent and Humanoid and Humanoid.Health > 0 then
-            if not isRunningWithTool then
+            -- Only overlay movement if not holding Run Tool and not actively swinging/using skills
+            if not isRunningWithTool and not IsAttackingOrStunned then
                 local isMoving = Humanoid.MoveDirection.Magnitude > 0 or RootPart.AssemblyLinearVelocity.Magnitude > 2
                 
                 if isMoving then
-                    if IdleTrack.IsPlaying then IdleTrack:Stop(0.05) end
-                    if not RunTrack.IsPlaying then RunTrack:Play(0.05) end
+                    if IdleTrack.IsPlaying then IdleTrack:Stop(0.1) end
+                    if not RunTrack.IsPlaying then RunTrack:Play(0.1) end
                 else
-                    if RunTrack.IsPlaying then RunTrack:Stop(0.05) end
-                    if not IdleTrack.IsPlaying then IdleTrack:Play(0.05) end
+                    if RunTrack.IsPlaying then RunTrack:Stop(0.1) end
+                    if not IdleTrack.IsPlaying then IdleTrack:Play(0.1) end
                 end
             else
-                if IdleTrack.IsPlaying then IdleTrack:Stop(0.05) end
-                if RunTrack.IsPlaying then RunTrack:Stop(0.05) end
+                -- Instantly yields movement states if combat or sprinting tools are active
+                if IdleTrack.IsPlaying then IdleTrack:Stop(0.1) end
+                if RunTrack.IsPlaying then RunTrack:Stop(0.1) end
             end
         end
         task.wait(0.05)
@@ -333,7 +365,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
 end)
 
 -- ============================================================================
--- 9. RUNTIME EXTRACTIONS (Chat Announcements)
+-- 9. RUNTIME EXTRACTIONS
 -- ============================================================================
 task.spawn(function()
     local messages = {"SYSTEM ACCESS GRANTED", "GAROU ENGINE ACTIVE", "VFX PIPELINES ONLINE"}
