@@ -1,5 +1,5 @@
 -- ============================================================================
--- GAROU PERFECTED SYSTEM (DYNAMIC STUN & FORCED MOTION OVERRIDE ENGINE)
+-- MASTER COMBAT ENGINE (NATIVE INJECTION & CUSTOM REMIX CONFIGURATION)
 -- ============================================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,44 +15,81 @@ local RootPart = Character:WaitForChild("HumanoidRootPart")
 local PlayerGui = Player:WaitForChild("PlayerGui")
 local Camera = workspace.CurrentCamera
 
--- Re-hook on respawn to guarantee it never drops tracking
+-- Global tracking state to secure combat strings from movement overrides
+local IsPerformingCombat = false
+
+-- ============================================================================
+-- 1. REMIXED ANIMATION CONFIGURATION DATA MAP
+-- ============================================================================
+local AnimationData = {
+    -- Move 1: Saitama Normal Punch -> Fracture of Tundra Boss: Permafrost
+    ["10468665991"] = {Replacement = "100558589307006", Speed = 1.0, TimePosition = 0, VFX = "HugeSlash"},
+    
+    -- Move 2: Saitama Consecutive Punches -> Garou Crushed Rock Startup
+    ["10466974800"] = {Replacement = "72451715583225", Speed = 1.0, TimePosition = 0, VFX = "LastImpact"},
+    
+    -- Move 3: Saitama Shove -> Child Emperor Weboom combo with Martial Artist Rising Fist
+    ["10471336737"] = {Replacement = "113166426814229", Speed = 1.0, TimePosition = 0, Duration = 1.5, VFX = "BlackFlash"},
+    
+    -- Move 4: Saitama Uppercut -> Tatsumaki Windstorm Fury (Legacy Preservation)
+    ["12510170988"] = {Replacement = "16515850153", Speed = 1.0, TimePosition = 0, VFX = "BigAura"},
+    
+    -- Miscellaneous Defaults & Awakening Switches
+    ["15955393872"] = {Replacement = "18181589384", Speed = 1.0, TimePosition = 0.05},  -- Wall Combo -> Martial Artist
+    ["12447707844"] = {Replacement = "18435535291", Speed = 1.0, TimePosition = 0},     -- Awk -> Martial Artist Awakening
+    ["11365563255"] = {Replacement = "14516273501", Speed = 1.0, TimePosition = 0},     -- Table Flip Override
+}
+
+-- Comprehensive M1 Punch Translation Engine Map (Martial Artist Chains)
+local PunchReplacements = {
+    ["10469493270"] = "17889458563", -- Punch 1
+    ["10469630950"] = "17889461810", -- Punch 2
+    ["10469639222"] = "17889471098", -- Punch 3
+    ["10469643643"] = "17889290569", -- Punch 4
+}
+
+-- ============================================================================
+-- 2. NATIVE BASE ANIMATION INJECTOR (Swapped to KJ 20-20-20 Dropkick Run)
+-- ============================================================================
+local function InjectBaseAnimations(char)
+    local animateScript = char:WaitForChild("Animate", 5)
+    if animateScript then
+        local idleValue = animateScript:FindFirstChild("idle") or animateScript:WaitForChild("idle")
+        if idleValue then
+            local animLink = idleValue:FindFirstChildOfClass("Animation")
+            if animLink then animLink.AnimationId = "rbxassetid://15099756132" end
+        end
+        
+        -- Native injection tracks now explicitly prioritize KJ's 20-20-20 Dropkick run track
+        local runValue = animateScript:FindFirstChild("run") or animateScript:WaitForChild("run")
+        if runValue then
+            local animLink = runValue:FindFirstChildOfClass("Animation")
+            if animLink then animLink.AnimationId = "rbxassetid://17354976067" end
+        end
+
+        local walkValue = animateScript:FindFirstChild("walk") or animateScript:WaitForChild("walk")
+        if walkValue then
+            local animLink = walkValue:FindFirstChildOfClass("Animation")
+            if animLink then animLink.AnimationId = "rbxassetid://17354976067" end
+        end
+        
+        local currentHumanoid = char:WaitForChild("Humanoid")
+        currentHumanoid:ChangeState(Enum.HumanoidStateType.Landed)
+    end
+end
+
+InjectBaseAnimations(Character)
 Player.CharacterAdded:Connect(function(newChar)
     Character = newChar
     Humanoid = newChar:WaitForChild("Humanoid")
     Animator = Humanoid:WaitForChild("Animator")
     RootPart = newChar:WaitForChild("HumanoidRootPart")
+    IsPerformingCombat = false
+    InjectBaseAnimations(newChar)
 end)
 
 -- ============================================================================
--- 1. TRACK CONSOLIDATION MAP (Max Priority & Custom Offsets)
--- ============================================================================
-local AnimationData = {
-    ["10468665991"] = {Replacement = "17838006839", Speed = 0.9, TimePosition = 0, VFX = "HugeSlash"},     -- Move 1
-    ["10466974800"] = {Replacement = "18181589384", Speed = 1.0, TimePosition = 0, VFX = "LastImpact"},    -- Move 2
-    ["10471336737"] = {Replacement = "17838619895", Speed = 1.0, TimePosition = 0.3, Duration = 1.8, VFX = "BlackFlash"}, -- Move 3
-    ["12510170988"] = {Replacement = "16515850153", Speed = 1.0, TimePosition = 0, VFX = "BigAura"},     -- Move 4
-    ["15955393872"] = {Replacement = "15943915877", Speed = 1.0, TimePosition = 0.05},  -- Wall Combo
-    ["12447707844"] = {Replacement = "17106858586", Speed = 1.0, TimePosition = 0},     -- Ult Activation
-    ["10479335397"] = {Replacement = "13294790250", Speed = 1.3, TimePosition = 0, Duration = 1.8}, -- Dash
-    ["10503381238"] = {Replacement = "14900168720", Speed = 0.7, TimePosition = 1.3},    -- Uppercut
-    ["10470104242"] = {Replacement = "12447247483", Speed = 6.0, TimePosition = 0, Delay = 0.2},  -- Downslam
-}
-
--- M1 Punch Replacements Map
-local PunchReplacements = {
-    ["17859015788"] = "12684185971", -- Downslam Finisher
-    ["10469493270"] = "17889458563", -- Punch 1
-    ["10469630950"] = "17889461810", -- Punch 2
-    ["10469639222"] = "17889471098", -- Punch 3
-    ["10469643643"] = "17889290569", -- Punch 4
-    ["11365563255"] = "14516273501", -- Extra M1 Punch
-}
-
--- Global tracking state to prevent walking loop from clipping combat skills
-local IsAttackingOrStunned = false
-
--- ============================================================================
--- 2. DYNAMIC GAME REPLICATED VFX DEPLOYER
+-- 3. DYNAMIC VFX ENGINE
 -- ============================================================================
 local function DeployVFX(vfxType, burstCount)
     local targetSource = nil
@@ -87,7 +124,7 @@ local function DeployVFX(vfxType, burstCount)
 end
 
 -- ============================================================================
--- 3. STATE CONTROLS, TARGETING & UTILITIES
+-- 4. FIXED LOCK-ON UTILITY & FLIPS
 -- ============================================================================
 local CurrentTarget = nil
 local LockOnActive = false
@@ -111,16 +148,20 @@ local function GetClosestEnemy()
     return closestEnemy
 end
 
+-- Completely rewritten camera lock tracking algorithm
 RunService.RenderStepped:Connect(function()
     if LockOnActive and CurrentTarget and CurrentTarget:FindFirstChild("HumanoidRootPart") and CurrentTarget:FindFirstChild("Humanoid") and CurrentTarget.Humanoid.Health > 0 then
-        Camera.CFrame = CFrame.new(Camera.CFrame.Position, CurrentTarget.HumanoidRootPart.Position)
+        local targetPos = CurrentTarget.HumanoidRootPart.Position
+        local cameraPos = Camera.CFrame.Position
+        -- Creates smooth looking alignment without messing up your zoom distances
+        Camera.CFrame = CFrame.lookAt(cameraPos, targetPos)
+        Camera.Focus = CurrentTarget.HumanoidRootPart.CFrame
     else
         LockOnActive = false
         CurrentTarget = nil
     end
 end)
 
--- FLIP UTILITIES
 local function TriggerBackflip()
     DeployVFX("HunterMode", 5)
     RootPart.AssemblyLinearVelocity = (RootPart.CFrame.LookVector * -45) + Vector3.new(0, 32, 0)
@@ -132,7 +173,7 @@ local function TriggerFrontflip()
 end
 
 -- ============================================================================
--- 4. INTEGRATED RUN TOOL INITIALIZATION (FORCED RUN FIX)
+-- 5. INTEGRATED RUN TOOL INITIALIZATION (KJ 20-20-20 Sprint Integration)
 -- ============================================================================
 local runTool = Instance.new("Tool")
 runTool.Name = "Run Tool"
@@ -143,16 +184,14 @@ local isRunningWithTool = false
 local toolMovementSpeed = 125
 
 local ToolRunAnim = Instance.new("Animation")
-ToolRunAnim.AnimationId = "rbxassetid://15962326593" -- Forcing your custom sprint track
+ToolRunAnim.AnimationId = "rbxassetid://17354976067"
 local ToolRunTrack = nil
 
 runTool.Equipped:Connect(function()
     isRunningWithTool = true
-    IsAttackingOrStunned = false
-    
     if Animator then
         ToolRunTrack = Animator:LoadAnimation(ToolRunAnim)
-        ToolRunTrack.Priority = Enum.AnimationPriority.Action4 -- Overwrites base TSB run completely
+        ToolRunTrack.Priority = Enum.AnimationPriority.Action4
         ToolRunTrack:Play(0.1)
         ToolRunTrack:AdjustSpeed(1.4)
     end
@@ -177,12 +216,12 @@ runTool.Unequipped:Connect(function()
 end)
 
 -- ============================================================================
--- 5. CENTRAL ANIMATION INTERCEPT ENGINE
+-- 6. INTERCEPT FRAMEWORK (STOPS ENGINE BLOCKS DURING COMBAT)
 -- ============================================================================
 local function StopAllTracks()
     for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do
         local trackId = track.Animation.AnimationId
-        if trackId ~= "rbxassetid://15099756132" and trackId ~= "rbxassetid://15962326593" then
+        if trackId ~= "rbxassetid://15099756132" and trackId ~= "rbxassetid://17354976067" then
             track:Stop(0)
         end
     end
@@ -192,27 +231,20 @@ local function HandleInterception(animationTrack)
     local rawId = animationTrack.Animation.AnimationId:match("%d+")
     if not rawId then return end
     
+    if IsPerformingCombat and (rawId == "15099756132" or rawId == "17354976067") then
+        animationTrack:Stop(0)
+        return
+    end
+
     local config = AnimationData[rawId]
     if config then
-        IsAttackingOrStunned = true -- Freeze walk loop
+        IsPerformingCombat = true
         animationTrack:Stop(0)
         StopAllTracks()
         
         task.spawn(function()
             if config.Delay then task.wait(config.Delay) end
             if config.VFX then DeployVFX(config.VFX, 20) end
-            
-            if rawId == "10466974800" then
-                task.spawn(function()
-                    local startTime = os.clock()
-                    while os.clock() - startTime < 0.15 do
-                        if RootPart then
-                            RootPart.AssemblyLinearVelocity = Vector3.new(RootPart.AssemblyLinearVelocity.X, 65, RootPart.AssemblyLinearVelocity.Z)
-                        end
-                        RunService.Stepped:Wait()
-                    end
-                end)
-            end
             
             local newAnim = Instance.new("Animation")
             newAnim.AnimationId = "rbxassetid://" .. config.Replacement
@@ -227,22 +259,30 @@ local function HandleInterception(animationTrack)
             end
             newTrack:AdjustSpeed(config.Speed)
             
-            -- Keep movement background frozen for duration of move
+            -- Chain logic adjustment specifically built for Move 3 (Weboom into Rising Fist transition)
+            if rawId == "10471336737" then
+                task.wait(0.6)
+                local comboAnim = Instance.new("Animation")
+                comboAnim.AnimationId = "rbxassetid://18896127525"
+                local comboTrack = Animator:LoadAnimation(comboAnim)
+                comboTrack.Priority = Enum.AnimationPriority.Action4
+                comboTrack:Play(0.1)
+            end
+            
             if config.Duration then
                 task.wait(config.Duration)
+                newTrack:Stop(0.1)
             else
                 newTrack.Stopped:Wait()
             end
-            
-            newTrack:Stop(0.1)
-            IsAttackingOrStunned = false -- Release walk loop safely
+            IsPerformingCombat = false
         end)
         return
     end
     
     local punchReplacementId = PunchReplacements[rawId]
     if punchReplacementId then
-        IsAttackingOrStunned = true
+        IsPerformingCombat = true
         animationTrack:Stop(0)
         
         local newAnim = Instance.new("Animation")
@@ -253,7 +293,8 @@ local function HandleInterception(animationTrack)
         
         task.spawn(function()
             newTrack.Stopped:Wait()
-            IsAttackingOrStunned = false
+            task.wait(0.05)
+            IsPerformingCombat = false
         end)
     end
 end
@@ -261,7 +302,7 @@ end
 Humanoid.AnimationPlayed:Connect(HandleInterception)
 
 -- ============================================================================
--- 6. VELOCITY DAMPENER
+-- 7. VELOCITY DAMPENER & HUD LAYER
 -- ============================================================================
 local function SecureVelocity(descendant)
     if descendant:IsA("BodyVelocity") then
@@ -272,46 +313,6 @@ end
 Character.DescendantAdded:Connect(SecureVelocity)
 for _, desc in ipairs(Character:GetDescendants()) do SecureVelocity(desc) end
 
--- ============================================================================
--- 7. STATE CORE: SMART IDLE & WALK OVERLAY LOOPS
--- ============================================================================
-local IdleAnim = Instance.new("Animation")
-IdleAnim.AnimationId = "rbxassetid://15099756132"
-local IdleTrack = Animator:LoadAnimation(IdleAnim)
-IdleTrack.Priority = Enum.AnimationPriority.Action3
-
-local RunAnim = Instance.new("Animation")
-RunAnim.AnimationId = "rbxassetid://15962326593"
-local RunTrack = Animator:LoadAnimation(RunAnim)
-RunTrack.Priority = Enum.AnimationPriority.Action3
-
-task.spawn(function()
-    while true do
-        if Character and Character.Parent and Humanoid and Humanoid.Health > 0 then
-            -- Only overlay movement if not holding Run Tool and not actively swinging/using skills
-            if not isRunningWithTool and not IsAttackingOrStunned then
-                local isMoving = Humanoid.MoveDirection.Magnitude > 0 or RootPart.AssemblyLinearVelocity.Magnitude > 2
-                
-                if isMoving then
-                    if IdleTrack.IsPlaying then IdleTrack:Stop(0.1) end
-                    if not RunTrack.IsPlaying then RunTrack:Play(0.1) end
-                else
-                    if RunTrack.IsPlaying then RunTrack:Stop(0.1) end
-                    if not IdleTrack.IsPlaying then IdleTrack:Play(0.1) end
-                end
-            else
-                -- Instantly yields movement states if combat or sprinting tools are active
-                if IdleTrack.IsPlaying then IdleTrack:Stop(0.1) end
-                if RunTrack.IsPlaying then RunTrack:Stop(0.1) end
-            end
-        end
-        task.wait(0.05)
-    end
-end)
-
--- ============================================================================
--- 8. UTILITIES OVERLAY LAYER (HUD Controls)
--- ============================================================================
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "GarouUtilityHUD"
 ScreenGui.ResetOnSpawn = false
@@ -347,11 +348,7 @@ local Crimson = Color3.fromRGB(255, 50, 50)
 
 CreateMobileButton("LOCK ON", UDim2.new(0, 0, 0, 0), Crimson, function()
     LockOnActive = not LockOnActive
-    if LockOnActive then 
-        CurrentTarget = GetClosestEnemy() 
-    else 
-        CurrentTarget = nil 
-    end
+    if LockOnActive then CurrentTarget = GetClosestEnemy() else CurrentTarget = nil end
 end)
 CreateMobileButton("B-FLIP", UDim2.new(0, 115, 0, 0), Crimson, TriggerBackflip)
 CreateMobileButton("F-FLIP", UDim2.new(0, 0, 0, 55), Crimson, TriggerFrontflip)
@@ -361,26 +358,5 @@ UserInputService.InputBegan:Connect(function(input, processed)
     if input.KeyCode == Enum.KeyCode.Q then
         LockOnActive = not LockOnActive
         if LockOnActive then CurrentTarget = GetClosestEnemy() else CurrentTarget = nil end
-    end
-end)
-
--- ============================================================================
--- 9. RUNTIME EXTRACTIONS
--- ============================================================================
-task.spawn(function()
-    local messages = {"SYSTEM ACCESS GRANTED", "GAROU ENGINE ACTIVE", "VFX PIPELINES ONLINE"}
-    local sayMessage = ReplicatedStorage:FindFirstChild("SayMessageRequest", true) or 
-                       (ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and 
-                        ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest"))
-                       
-    if sayMessage then
-        for _, msg in ipairs(messages) do
-            if sayMessage:IsA("RemoteEvent") then
-                sayMessage:FireServer(msg, "All")
-            elseif sayMessage:IsA("RemoteFunction") then
-                sayMessage:InvokeServer(msg, "All")
-            end
-            task.wait(1.5)
-        end
     end
 end)
