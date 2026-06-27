@@ -1,21 +1,23 @@
 -- ============================================================================
--- GAROU PERFECTED ANIMATION OVERHAUL SYSTEM
+-- GAROU PERFECTED ANIMATION OVERHAUL SYSTEM (WITH VFX INTEGRATION)
 -- ============================================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Debris = game:GetService("Debris")
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local Animator = Humanoid:WaitForChild("Animator")
+local RootPart = Character:WaitForChild("HumanoidRootPart")
 
 -- ============================================================================
 -- 1. TRACK CONSOLIDATION MAP (Your Exact Targets & Custom Offsets)
 -- ============================================================================
 local AnimationData = {
-    ["10468665991"] = {Replacement = "17838006839", Speed = 0.9, TimePosition = 0},     -- Move 1
-    ["10466974800"] = {Replacement = "18181589384", Speed = 1.0, TimePosition = 0},     -- Move 2
-    ["10471336737"] = {Replacement = "17838619895", Speed = 1.0, TimePosition = 0.3, Duration = 1.8}, -- Move 3
-    ["12510170988"] = {Replacement = "16515850153", Speed = 1.0, TimePosition = 0},     -- Move 4
+    ["10468665991"] = {Replacement = "17838006839", Speed = 0.9, TimePosition = 0, VFX = "HugeSlash"},     -- Move 1
+    ["10466974800"] = {Replacement = "18181589384", Speed = 1.0, TimePosition = 0, VFX = "LastImpact"},    -- Move 2
+    ["10471336737"] = {Replacement = "17838619895", Speed = 1.0, TimePosition = 0.3, Duration = 1.8, VFX = "BlackFlash"}, -- Move 3
+    ["12510170988"] = {Replacement = "16515850153", Speed = 1.0, TimePosition = 0, VFX = "BigAura"},     -- Move 4
     ["15955393872"] = {Replacement = "15943915877", Speed = 1.0, TimePosition = 0.05},  -- Wall Combo
     ["12447707844"] = {Replacement = "17106858586", Speed = 1.0, TimePosition = 0},     -- Ult Activation
     ["10479335397"] = {Replacement = "13294790250", Speed = 1.3, TimePosition = 0, Duration = 1.8}, -- Dash
@@ -34,7 +36,39 @@ local PunchReplacements = {
 }
 
 -- ============================================================================
--- 2. CENTRAL ANIMATION INTERCEPT ENGINE
+-- 2. DYNAMIC GAME REPLICATED VFX DEPLOYER
+-- ============================================================================
+local function DeployVFX(vfxType, burstCount)
+    local targetSource = nil
+    pcall(function()
+        if vfxType == "HunterMode" then
+            targetSource = workspace.Live:FindFirstChild(Player.Name).HumanoidRootPart:FindFirstChild("HunterMode")
+        elseif vfxType == "BigAura" then
+            targetSource = ReplicatedStorage.Emotes.VFX.VfxMods.FS.vfx.BigAuraFx.Attachment
+        elseif vfxType == "LastImpact" then
+            targetSource = ReplicatedStorage.Emotes.VFX.VfxMods.Flasher.vfx.LastImpactFx.Attachment
+        elseif vfxType == "BlackFlash" then
+            targetSource = ReplicatedStorage.Emotes.VFX.VfxMods.Flasher.vfx.BlackFlashFx.Main
+        elseif vfxType == "HugeSlash" then
+            targetSource = ReplicatedStorage.Emotes.VFX.RealAssets.HugeSlash.SLASH.M
+        end
+    end)
+    
+    if targetSource and RootPart then
+        local clonedVFX = targetSource:Clone()
+        clonedVFX.Parent = RootPart
+        for _, child in ipairs(clonedVFX:GetChildren()) do
+            if child:IsA("ParticleEmitter") then
+                child:Emit(burstCount or 15)
+                child.Enabled = true
+            end
+        end
+        Debris:AddItem(clonedVFX, 2)
+    end
+end
+
+-- ============================================================================
+-- 3. CENTRAL ANIMATION INTERCEPT ENGINE
 -- ============================================================================
 local function StopAllTracks()
     for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do
@@ -54,6 +88,11 @@ local function HandleInterception(animationTrack)
         
         task.spawn(function()
             if config.Delay then task.wait(config.Delay) end
+            
+            -- Trigger associated move VFX dynamically
+            if config.VFX then
+                DeployVFX(config.VFX, 20)
+            end
             
             local newAnim = Instance.new("Animation")
             newAnim.AnimationId = "rbxassetid://" .. config.Replacement
@@ -90,7 +129,7 @@ end
 Humanoid.AnimationPlayed:Connect(HandleInterception)
 
 -- ============================================================================
--- 3. VELOCITY DAMPENER (Prevents Physics Overwrites & Flight Kicks)
+-- 4. VELOCITY DAMPENER (Prevents Physics Overwrites & Flight Kicks)
 -- ============================================================================
 local function SecureVelocity(descendant)
     if descendant:IsA("BodyVelocity") then
@@ -102,7 +141,7 @@ Character.DescendantAdded:Connect(SecureVelocity)
 for _, desc in ipairs(Character:GetDescendants()) do SecureVelocity(desc) end
 
 -- ============================================================================
--- 4. STATE CORE: DYNAMIC RUN & IDLE LOOPS
+-- 5. STATE CORE: DYNAMIC RUN & IDLE LOOPS
 -- ============================================================================
 local IdleAnim = Instance.new("Animation")
 IdleAnim.AnimationId = "rbxassetid://15099756132"
@@ -119,6 +158,8 @@ task.spawn(function()
         if isMoving then
             if IdleTrack.IsPlaying then IdleTrack:Stop(0.2) end
             if not RunTrack.IsPlaying then RunTrack:Play(0.2) end
+            -- Keep subtle trailing red aura while running
+            DeployVFX("HunterMode", 1)
         else
             if RunTrack.IsPlaying then RunTrack:Stop(0.2) end
             if not IdleTrack.IsPlaying then IdleTrack:Play(0.2) end
@@ -128,13 +169,13 @@ task.spawn(function()
 end)
 
 -- ============================================================================
--- 5. RUNTIME EXTRACTIONS (Chat Announcements)
+-- 6. RUNTIME EXTRACTIONS (Chat Announcements Fixed Syntax)
 -- ============================================================================
 task.spawn(function()
     local messages = {"SYSTEM ACCESS GRANTED", "GAROU ENGINE ACTIVE", "VFX PIPELINES ONLINE"}
-    local sayMessage = ReplicatedStorage: some vfx you can useFindFirstChild("SayMessageRequest", true) or 
-                       ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and 
-                       ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest")
+    local sayMessage = ReplicatedStorage:FindFirstChild("SayMessageRequest", true) or 
+                       (ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents") and 
+                        ReplicatedStorage.DefaultChatSystemChatEvents:FindFirstChild("SayMessageRequest"))
                        
     if sayMessage then
         for _, msg in ipairs(messages) do
