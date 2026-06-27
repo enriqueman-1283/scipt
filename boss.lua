@@ -17,6 +17,7 @@ local Camera = workspace.CurrentCamera
 
 -- Global tracking state to secure combat strings from movement overrides
 local IsPerformingCombat = false
+local MovementTrack = nil
 
 -- ============================================================================
 -- 1. REMIXED ANIMATION CONFIGURATION DATA MAP
@@ -49,43 +50,41 @@ local PunchReplacements = {
 }
 
 -- ============================================================================
--- 2. NATIVE BASE ANIMATION INJECTOR (Swapped to KJ 20-20-20 Dropkick Run)
+-- 2. DYNAMIC MOVEMENT LAYER (Handles KJ Dropkick without breaking default walks)
 -- ============================================================================
-local function InjectBaseAnimations(char)
-    local animateScript = char:WaitForChild("Animate", 5)
-    if animateScript then
-        local idleValue = animateScript:FindFirstChild("idle") or animateScript:WaitForChild("idle")
-        if idleValue then
-            local animLink = idleValue:FindFirstChildOfClass("Animation")
-            if animLink then animLink.AnimationId = "rbxassetid://15099756132" end
-        end
-        
-        -- Native injection tracks now explicitly prioritize KJ's 20-20-20 Dropkick run track
-        local runValue = animateScript:FindFirstChild("run") or animateScript:WaitForChild("run")
-        if runValue then
-            local animLink = runValue:FindFirstChildOfClass("Animation")
-            if animLink then animLink.AnimationId = "rbxassetid://17354976067" end
-        end
-
-        local walkValue = animateScript:FindFirstChild("walk") or animateScript:WaitForChild("walk")
-        if walkValue then
-            local animLink = walkValue:FindFirstChildOfClass("Animation")
-            if animLink then animLink.AnimationId = "rbxassetid://17354976067" end
-        end
-        
-        local currentHumanoid = char:WaitForChild("Humanoid")
-        currentHumanoid:ChangeState(Enum.HumanoidStateType.Landed)
+local function ManageMovementTracks()
+    if MovementTrack then 
+        MovementTrack:Stop() 
+        MovementTrack = nil 
     end
+    
+    local RunAnim = Instance.new("Animation")
+    RunAnim.AnimationId = "rbxassetid://17354976067"
+    MovementTrack = Animator:LoadAnimation(RunAnim)
+    MovementTrack.Priority = Enum.AnimationPriority.Movement
+    
+    -- Listen to running states smoothly
+    Humanoid.Running:Connect(function(speed)
+        if speed > 0.1 and not IsPerformingCombat then
+            if not MovementTrack.IsPlaying then
+                MovementTrack:Play(0.2)
+            end
+        else
+            if MovementTrack.IsPlaying then
+                MovementTrack:Stop(0.2)
+            end
+        end
+    end)
 end
 
-InjectBaseAnimations(Character)
+ManageMovementTracks()
 Player.CharacterAdded:Connect(function(newChar)
     Character = newChar
     Humanoid = newChar:WaitForChild("Humanoid")
     Animator = Humanoid:WaitForChild("Animator")
     RootPart = newChar:WaitForChild("HumanoidRootPart")
     IsPerformingCombat = false
-    InjectBaseAnimations(newChar)
+    ManageMovementTracks()
 end)
 
 -- ============================================================================
@@ -148,12 +147,10 @@ local function GetClosestEnemy()
     return closestEnemy
 end
 
--- Completely rewritten camera lock tracking algorithm
 RunService.RenderStepped:Connect(function()
     if LockOnActive and CurrentTarget and CurrentTarget:FindFirstChild("HumanoidRootPart") and CurrentTarget:FindFirstChild("Humanoid") and CurrentTarget.Humanoid.Health > 0 then
         local targetPos = CurrentTarget.HumanoidRootPart.Position
         local cameraPos = Camera.CFrame.Position
-        -- Creates smooth looking alignment without messing up your zoom distances
         Camera.CFrame = CFrame.lookAt(cameraPos, targetPos)
         Camera.Focus = CurrentTarget.HumanoidRootPart.CFrame
     else
@@ -189,6 +186,7 @@ local ToolRunTrack = nil
 
 runTool.Equipped:Connect(function()
     isRunningWithTool = true
+    if MovementTrack and MovementTrack.IsPlaying then MovementTrack:Stop() end
     if Animator then
         ToolRunTrack = Animator:LoadAnimation(ToolRunAnim)
         ToolRunTrack.Priority = Enum.AnimationPriority.Action4
@@ -231,6 +229,7 @@ local function HandleInterception(animationTrack)
     local rawId = animationTrack.Animation.AnimationId:match("%d+")
     if not rawId then return end
     
+    -- Stops the running overlay track immediately when a skill starts
     if IsPerformingCombat and (rawId == "15099756132" or rawId == "17354976067") then
         animationTrack:Stop(0)
         return
@@ -239,6 +238,7 @@ local function HandleInterception(animationTrack)
     local config = AnimationData[rawId]
     if config then
         IsPerformingCombat = true
+        if MovementTrack and MovementTrack.IsPlaying then MovementTrack:Stop(0.1) end
         animationTrack:Stop(0)
         StopAllTracks()
         
@@ -283,6 +283,7 @@ local function HandleInterception(animationTrack)
     local punchReplacementId = PunchReplacements[rawId]
     if punchReplacementId then
         IsPerformingCombat = true
+        if MovementTrack and MovementTrack.IsPlaying then MovementTrack:Stop(0.1) end
         animationTrack:Stop(0)
         
         local newAnim = Instance.new("Animation")
