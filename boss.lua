@@ -1,5 +1,5 @@
 -- ============================================================================
--- GAROU PERFECTED SYSTEM (ALL-IN-ONE MASTER ENGINE)
+-- GAROU PERFECTED SYSTEM (MAX-PRIORITY FORCE OVERRIDE ENGINE)
 -- ============================================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -15,8 +15,16 @@ local RootPart = Character:WaitForChild("HumanoidRootPart")
 local PlayerGui = Player:WaitForChild("PlayerGui")
 local Camera = workspace.CurrentCamera
 
+-- Re-hook on respawn to guarantee it never drops tracking
+Player.CharacterAdded:Connect(function(newChar)
+    Character = newChar
+    Humanoid = newChar:WaitForChild("Humanoid")
+    Animator = Humanoid:WaitForChild("Animator")
+    RootPart = newChar:WaitForChild("HumanoidRootPart")
+end)
+
 -- ============================================================================
--- 1. TRACK CONSOLIDATION MAP (Your Exact Targets & Custom Offsets)
+-- 1. TRACK CONSOLIDATION MAP (Max Priority & Custom Offsets)
 -- ============================================================================
 local AnimationData = {
     ["10468665991"] = {Replacement = "17838006839", Speed = 0.9, TimePosition = 0, VFX = "HugeSlash"},     -- Move 1
@@ -47,7 +55,10 @@ local function DeployVFX(vfxType, burstCount)
     local targetSource = nil
     pcall(function()
         if vfxType == "HunterMode" then
-            targetSource = workspace.Live:FindFirstChild(Player.Name).HumanoidRootPart:FindFirstChild("HunterMode")
+            local liveChar = workspace:FindFirstChild(Player.Name) or (workspace:FindFirstChild("Live") and workspace.Live:FindFirstChild(Player.Name))
+            if liveChar and liveChar:FindFirstChild("HumanoidRootPart") then
+                targetSource = liveChar.HumanoidRootPart:FindFirstChild("HunterMode")
+            end
         elseif vfxType == "BigAura" then
             targetSource = ReplicatedStorage.Emotes.VFX.VfxMods.FS.vfx.BigAuraFx.Attachment
         elseif vfxType == "LastImpact" then
@@ -80,13 +91,18 @@ local LockOnActive = false
 
 local function GetClosestEnemy()
     local closestEnemy = nil
-    local maxDistance = 100
-    for _, p in ipairs(Players:GetPlayers()) do
-        if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-            local distance = (RootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude
-            if distance < maxDistance then
-                maxDistance = distance
-                closestEnemy = p.Character
+    local maxDistance = 250
+    
+    -- Loop through workspace safely to find the true closest target layout
+    for _, obj in ipairs(workspace:GetChildren()) do
+        if obj:IsA("Model") and obj ~= Character and obj:FindFirstChild("HumanoidRootPart") and obj:FindFirstChild("Humanoid") then
+            local p = Players:GetPlayerFromCharacter(obj)
+            if (p or obj:FindFirstChild("Animate")) and obj.Humanoid.Health > 0 then
+                local distance = (RootPart.Position - obj.HumanoidRootPart.Position).Magnitude
+                if distance < maxDistance then
+                    maxDistance = distance
+                    closestEnemy = obj
+                end
             end
         end
     end
@@ -94,10 +110,11 @@ local function GetClosestEnemy()
 end
 
 RunService.RenderStepped:Connect(function()
-    if LockOnActive and CurrentTarget and CurrentTarget:FindFirstChild("HumanoidRootPart") then
+    if LockOnActive and CurrentTarget and CurrentTarget:FindFirstChild("HumanoidRootPart") and CurrentTarget:FindFirstChild("Humanoid") and CurrentTarget.Humanoid.Health > 0 then
         Camera.CFrame = CFrame.new(Camera.CFrame.Position, CurrentTarget.HumanoidRootPart.Position)
     else
         LockOnActive = false
+        CurrentTarget = nil
     end
 end)
 
@@ -141,12 +158,12 @@ runTool.Unequipped:Connect(function()
 end)
 
 -- ============================================================================
--- 5. CENTRAL ANIMATION INTERCEPT ENGINE
+-- 5. CENTRAL ANIMATION INTERCEPT ENGINE (FORCE METHOD)
 -- ============================================================================
 local function StopAllTracks()
     for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do
-        -- Skip our own core movement loops to maintain smooth transitions
-        if track.Animation.AnimationId ~= "rbxassetid://15099756132" and track.Animation.AnimationId ~= "rbxassetid://15962326593" then
+        local trackId = track.Animation.AnimationId
+        if trackId ~= "rbxassetid://15099756132" and trackId ~= "rbxassetid://15962326593" then
             track:Stop(0)
         end
     end
@@ -156,7 +173,6 @@ local function HandleInterception(animationTrack)
     local rawId = animationTrack.Animation.AnimationId:match("%d+")
     if not rawId then return end
     
-    -- Check Main Skill / Movement Maps
     local config = AnimationData[rawId]
     if config then
         animationTrack:Stop(0)
@@ -164,13 +180,8 @@ local function HandleInterception(animationTrack)
         
         task.spawn(function()
             if config.Delay then task.wait(config.Delay) end
+            if config.VFX then DeployVFX(config.VFX, 20) end
             
-            -- Trigger move VFX
-            if config.VFX then
-                DeployVFX(config.VFX, 20)
-            end
-            
-            -- Move 2 Lag-Free Physics Handler
             if rawId == "10466974800" then
                 task.spawn(function()
                     local startTime = os.clock()
@@ -187,7 +198,10 @@ local function HandleInterception(animationTrack)
             newAnim.AnimationId = "rbxassetid://" .. config.Replacement
             local newTrack = Animator:LoadAnimation(newAnim)
             
+            -- FORCES absolute priority layer to completely override system animations
+            newTrack.Priority = Enum.AnimationPriority.Action4
             newTrack:Play(0)
+            
             if config.TimePosition > 0 then
                 newTrack:AdjustSpeed(0)
                 newTrack.TimePosition = config.TimePosition
@@ -202,7 +216,6 @@ local function HandleInterception(animationTrack)
         return
     end
     
-    -- Check M1/Punch Queued Map
     local punchReplacementId = PunchReplacements[rawId]
     if punchReplacementId then
         animationTrack:Stop(0)
@@ -210,7 +223,7 @@ local function HandleInterception(animationTrack)
         local newAnim = Instance.new("Animation")
         newAnim.AnimationId = "rbxassetid://" .. punchReplacementId
         local newTrack = Animator:LoadAnimation(newAnim)
-        newTrack.Priority = Enum.AnimationPriority.Action
+        newTrack.Priority = Enum.AnimationPriority.Action4
         newTrack:Play(0)
     end
 end
@@ -230,35 +243,37 @@ Character.DescendantAdded:Connect(SecureVelocity)
 for _, desc in ipairs(Character:GetDescendants()) do SecureVelocity(desc) end
 
 -- ============================================================================
--- 7. STATE CORE: DYNAMIC RUN & IDLE LOOPS
+-- 7. STATE CORE: FIXED CUSTOM RUN & IDLE ENGINE
 -- ============================================================================
 local IdleAnim = Instance.new("Animation")
 IdleAnim.AnimationId = "rbxassetid://15099756132"
 local IdleTrack = Animator:LoadAnimation(IdleAnim)
+IdleTrack.Priority = Enum.AnimationPriority.Action3
 
 local RunAnim = Instance.new("Animation")
 RunAnim.AnimationId = "rbxassetid://15962326593"
 local RunTrack = Animator:LoadAnimation(RunAnim)
+RunTrack.Priority = Enum.AnimationPriority.Action3
 
 task.spawn(function()
-    while Character.Parent and Humanoid.Health > 0 do
-        -- Skip state override while sprinting with the Run Tool
-        if not isRunningWithTool then
-            local isMoving = Humanoid.MoveDirection.Magnitude > 0
-            
-            if isMoving then
-                if IdleTrack.IsPlaying then IdleTrack:Stop(0.2) end
-                if not RunTrack.IsPlaying then RunTrack:Play(0.2) end
-                DeployVFX("HunterMode", 1)
+    while true do
+        if Character and Character.Parent and Humanoid and Humanoid.Health > 0 then
+            if not isRunningWithTool then
+                local isMoving = Humanoid.MoveDirection.Magnitude > 0 or RootPart.AssemblyLinearVelocity.Magnitude > 2
+                
+                if isMoving then
+                    if IdleTrack.IsPlaying then IdleTrack:Stop(0.05) end
+                    if not RunTrack.IsPlaying then RunTrack:Play(0.05) end
+                else
+                    if RunTrack.IsPlaying then RunTrack:Stop(0.05) end
+                    if not IdleTrack.IsPlaying then IdleTrack:Play(0.05) end
+                end
             else
-                if RunTrack.IsPlaying then RunTrack:Stop(0.2) end
-                if not IdleTrack.IsPlaying then IdleTrack:Play(0.2) end
+                if IdleTrack.IsPlaying then IdleTrack:Stop(0.05) end
+                if RunTrack.IsPlaying then RunTrack:Stop(0.05) end
             end
-        else
-            if IdleTrack.IsPlaying then IdleTrack:Stop(0.1) end
-            if RunTrack.IsPlaying then RunTrack:Stop(0.1) end
         end
-        task.wait(0.15)
+        task.wait(0.05)
     end
 end)
 
@@ -300,12 +315,15 @@ local Crimson = Color3.fromRGB(255, 50, 50)
 
 CreateMobileButton("LOCK ON", UDim2.new(0, 0, 0, 0), Crimson, function()
     LockOnActive = not LockOnActive
-    if LockOnActive then CurrentTarget = GetClosestEnemy() else CurrentTarget = nil end
+    if LockOnActive then 
+        CurrentTarget = GetClosestEnemy() 
+    else 
+        CurrentTarget = nil 
+    end
 end)
 CreateMobileButton("B-FLIP", UDim2.new(0, 115, 0, 0), Crimson, TriggerBackflip)
 CreateMobileButton("F-FLIP", UDim2.new(0, 0, 0, 55), Crimson, TriggerFrontflip)
 
--- Keyboard alternative for PC testing
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed then return end
     if input.KeyCode == Enum.KeyCode.Q then
