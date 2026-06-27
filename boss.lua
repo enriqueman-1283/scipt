@@ -1,14 +1,19 @@
 -- ============================================================================
--- GAROU PERFECTED ANIMATION OVERHAUL SYSTEM (WITH VFX INTEGRATION)
+-- GAROU PERFECTED SYSTEM (ALL-IN-ONE MASTER ENGINE)
 -- ============================================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
 local Player = Players.LocalPlayer
 local Character = Player.Character or Player.CharacterAdded:Wait()
 local Humanoid = Character:WaitForChild("Humanoid")
 local Animator = Humanoid:WaitForChild("Animator")
 local RootPart = Character:WaitForChild("HumanoidRootPart")
+local PlayerGui = Player:WaitForChild("PlayerGui")
+local Camera = workspace.CurrentCamera
 
 -- ============================================================================
 -- 1. TRACK CONSOLIDATION MAP (Your Exact Targets & Custom Offsets)
@@ -68,11 +73,82 @@ local function DeployVFX(vfxType, burstCount)
 end
 
 -- ============================================================================
--- 3. CENTRAL ANIMATION INTERCEPT ENGINE
+-- 3. STATE CONTROLS, TARGETING & UTILITIES
+-- ============================================================================
+local CurrentTarget = nil
+local LockOnActive = false
+
+local function GetClosestEnemy()
+    local closestEnemy = nil
+    local maxDistance = 100
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= Player and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
+            local distance = (RootPart.Position - p.Character.HumanoidRootPart.Position).Magnitude
+            if distance < maxDistance then
+                maxDistance = distance
+                closestEnemy = p.Character
+            end
+        end
+    end
+    return closestEnemy
+end
+
+RunService.RenderStepped:Connect(function()
+    if LockOnActive and CurrentTarget and CurrentTarget:FindFirstChild("HumanoidRootPart") then
+        Camera.CFrame = CFrame.new(Camera.CFrame.Position, CurrentTarget.HumanoidRootPart.Position)
+    else
+        LockOnActive = false
+    end
+end)
+
+-- FLIP UTILITIES
+local function TriggerBackflip()
+    DeployVFX("HunterMode", 5)
+    RootPart.AssemblyLinearVelocity = (RootPart.CFrame.LookVector * -45) + Vector3.new(0, 32, 0)
+end
+
+local function TriggerFrontflip()
+    DeployVFX("HunterMode", 5)
+    RootPart.AssemblyLinearVelocity = (RootPart.CFrame.LookVector * 45) + Vector3.new(0, 32, 0)
+end
+
+-- ============================================================================
+-- 4. INTEGRATED RUN TOOL INITIALIZATION
+-- ============================================================================
+local runTool = Instance.new("Tool")
+runTool.Name = "Run Tool"
+runTool.Parent = Player:WaitForChild("Backpack")
+runTool.RequiresHandle = false
+
+local isRunningWithTool = false
+local toolMovementSpeed = 125
+
+runTool.Equipped:Connect(function()
+    isRunningWithTool = true
+    task.spawn(function()
+        while isRunningWithTool do
+            if RootPart then
+                RootPart.AssemblyLinearVelocity = Vector3.new(RootPart.CFrame.LookVector.X * toolMovementSpeed, RootPart.AssemblyLinearVelocity.Y, RootPart.CFrame.LookVector.Z * toolMovementSpeed)
+                DeployVFX("HunterMode", 1)
+            end
+            RunService.Stepped:Wait()
+        end
+    end)
+end)
+
+runTool.Unequipped:Connect(function()
+    isRunningWithTool = false
+end)
+
+-- ============================================================================
+-- 5. CENTRAL ANIMATION INTERCEPT ENGINE
 -- ============================================================================
 local function StopAllTracks()
     for _, track in ipairs(Animator:GetPlayingAnimationTracks()) do
-        track:Stop(0)
+        -- Skip our own core movement loops to maintain smooth transitions
+        if track.Animation.AnimationId ~= "rbxassetid://15099756132" and track.Animation.AnimationId ~= "rbxassetid://15962326593" then
+            track:Stop(0)
+        end
     end
 end
 
@@ -89,9 +165,22 @@ local function HandleInterception(animationTrack)
         task.spawn(function()
             if config.Delay then task.wait(config.Delay) end
             
-            -- Trigger associated move VFX dynamically
+            -- Trigger move VFX
             if config.VFX then
                 DeployVFX(config.VFX, 20)
+            end
+            
+            -- Move 2 Lag-Free Physics Handler
+            if rawId == "10466974800" then
+                task.spawn(function()
+                    local startTime = os.clock()
+                    while os.clock() - startTime < 0.15 do
+                        if RootPart then
+                            RootPart.AssemblyLinearVelocity = Vector3.new(RootPart.AssemblyLinearVelocity.X, 65, RootPart.AssemblyLinearVelocity.Z)
+                        end
+                        RunService.Stepped:Wait()
+                    end
+                end)
             end
             
             local newAnim = Instance.new("Animation")
@@ -129,7 +218,7 @@ end
 Humanoid.AnimationPlayed:Connect(HandleInterception)
 
 -- ============================================================================
--- 4. VELOCITY DAMPENER (Prevents Physics Overwrites & Flight Kicks)
+-- 6. VELOCITY DAMPENER (Prevents Physics Overwrites & Flight Kicks)
 -- ============================================================================
 local function SecureVelocity(descendant)
     if descendant:IsA("BodyVelocity") then
@@ -141,7 +230,7 @@ Character.DescendantAdded:Connect(SecureVelocity)
 for _, desc in ipairs(Character:GetDescendants()) do SecureVelocity(desc) end
 
 -- ============================================================================
--- 5. STATE CORE: DYNAMIC RUN & IDLE LOOPS
+-- 7. STATE CORE: DYNAMIC RUN & IDLE LOOPS
 -- ============================================================================
 local IdleAnim = Instance.new("Animation")
 IdleAnim.AnimationId = "rbxassetid://15099756132"
@@ -153,23 +242,80 @@ local RunTrack = Animator:LoadAnimation(RunAnim)
 
 task.spawn(function()
     while Character.Parent and Humanoid.Health > 0 do
-        local isMoving = Humanoid.MoveDirection.Magnitude > 0
-        
-        if isMoving then
-            if IdleTrack.IsPlaying then IdleTrack:Stop(0.2) end
-            if not RunTrack.IsPlaying then RunTrack:Play(0.2) end
-            -- Keep subtle trailing red aura while running
-            DeployVFX("HunterMode", 1)
+        -- Skip state override while sprinting with the Run Tool
+        if not isRunningWithTool then
+            local isMoving = Humanoid.MoveDirection.Magnitude > 0
+            
+            if isMoving then
+                if IdleTrack.IsPlaying then IdleTrack:Stop(0.2) end
+                if not RunTrack.IsPlaying then RunTrack:Play(0.2) end
+                DeployVFX("HunterMode", 1)
+            else
+                if RunTrack.IsPlaying then RunTrack:Stop(0.2) end
+                if not IdleTrack.IsPlaying then IdleTrack:Play(0.2) end
+            end
         else
-            if RunTrack.IsPlaying then RunTrack:Stop(0.2) end
-            if not IdleTrack.IsPlaying then IdleTrack:Play(0.2) end
+            if IdleTrack.IsPlaying then IdleTrack:Stop(0.1) end
+            if RunTrack.IsPlaying then RunTrack:Stop(0.1) end
         end
         task.wait(0.15)
     end
 end)
 
 -- ============================================================================
--- 6. RUNTIME EXTRACTIONS (Chat Announcements Fixed Syntax)
+-- 8. UTILITIES OVERLAY LAYER (HUD Controls)
+-- ============================================================================
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "GarouUtilityHUD"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = PlayerGui
+
+local Container = Instance.new("Frame")
+Container.Size = UDim2.new(0, 230, 0, 120)
+Container.Position = UDim2.new(1, -250, 0.15, 0)
+Container.BackgroundTransparency = 1
+Container.Parent = ScreenGui
+
+local function CreateMobileButton(name, position, color, callback)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0, 100, 0, 45)
+    button.Position = position
+    button.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    button.TextColor3 = color
+    button.Text = name
+    button.Font = Enum.Font.GothamBold
+    button.TextSize = 11
+    button.Parent = Container
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = button
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = color
+    stroke.Thickness = 1.5
+    stroke.Parent = button
+    button.Activated:Connect(callback)
+end
+
+local Crimson = Color3.fromRGB(255, 50, 50)
+
+CreateMobileButton("LOCK ON", UDim2.new(0, 0, 0, 0), Crimson, function()
+    LockOnActive = not LockOnActive
+    if LockOnActive then CurrentTarget = GetClosestEnemy() else CurrentTarget = nil end
+end)
+CreateMobileButton("B-FLIP", UDim2.new(0, 115, 0, 0), Crimson, TriggerBackflip)
+CreateMobileButton("F-FLIP", UDim2.new(0, 0, 0, 55), Crimson, TriggerFrontflip)
+
+-- Keyboard alternative for PC testing
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.KeyCode == Enum.KeyCode.Q then
+        LockOnActive = not LockOnActive
+        if LockOnActive then CurrentTarget = GetClosestEnemy() else CurrentTarget = nil end
+    end
+end)
+
+-- ============================================================================
+-- 9. RUNTIME EXTRACTIONS (Chat Announcements)
 -- ============================================================================
 task.spawn(function()
     local messages = {"SYSTEM ACCESS GRANTED", "GAROU ENGINE ACTIVE", "VFX PIPELINES ONLINE"}
